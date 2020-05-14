@@ -1,0 +1,17 @@
+{
+    "name": "rsthn/rose-ext-wind",
+    "description": "Wind (Rose Extension)",
+    "version": "1.0.0",
+    "type": "rose-extension",
+    "license": "Apache-2.0",
+    "authors": [
+        {
+            "name": "Jonathan Palencia",
+            "email": "strikeone88@rsthn.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "rsthn/rose-extension-installer": "*"
+    }
+}
