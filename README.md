@@ -1,3 +1,2 @@
-# Wind Extension for Rose
+# Wind Extension (Rose)
 
-More info later.

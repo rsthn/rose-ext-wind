@@ -67,7 +67,7 @@ class Wind
 
 	public static function init()
 	{
-		Gateway::registerService ('api', new WindProxy());
+		Gateway::registerService ('wind', new WindProxy());
 
 		Wind::$base = 'resources/api';
 		Wind::$data = new Map();
