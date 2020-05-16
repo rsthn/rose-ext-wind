@@ -69,16 +69,16 @@ class Wind
 	{
 		Gateway::registerService ('wind', new WindProxy());
 
-		Wind::$base = 'resources/api';
-		Wind::$data = new Map();
+		self::$base = 'resources/api';
+		self::$data = new Map();
 
-		Wind::$contentFlushed = false;
-		Wind::$contentType = null;
+		self::$contentFlushed = false;
+		self::$contentType = null;
 	}
 
 	public static function reply ($response)
 	{
-		if (Wind::$contentFlushed)
+		if (self::$contentFlushed)
 			Gateway::exit();
 
 		if (is_array($response))
@@ -86,13 +86,13 @@ class Wind
 
 		if (\Rose\typeOf($response) == 'Rose\\Map' || \Rose\typeOf($response) == 'Rose\Arry')
 		{
-			if (Wind::$contentType == null)
-				Wind::$contentType = 'Content-Type: application/json; charset=utf-8';
+			if (self::$contentType == null)
+				self::$contentType = 'Content-Type: application/json; charset=utf-8';
 		}
 		else if (is_string($response) && strlen($response) != 0)
 		{
-			if (Wind::$contentType == null)
-				Wind::$contentType = 'Content-Type: text/plain; charset=utf-8';
+			if (self::$contentType == null)
+				self::$contentType = 'Content-Type: text/plain; charset=utf-8';
 		}
 		else
 		{
@@ -101,7 +101,7 @@ class Wind
 
 		if ($response != null)
 		{
-			Gateway::header(Wind::$contentType);
+			Gateway::header(self::$contentType);
 			echo (string)$response;
 		}
 
@@ -110,11 +110,25 @@ class Wind
 
 	public static function process ($path)
 	{
-		$path = Path::append(Wind::$base, Text::replace('.', '/', $path));
+		$path = Path::append(self::$base, Text::replace('.', '/', $path));
 
 		if (Path::exists($path))
 		{
-			Expr::eval(File::getContents($path), Wind::$data, 'obj');
+			$expr = Expr::parse(File::getContents($path));
+			for ($i = 0; $i < $expr->length; $i++)
+			{
+				if ($expr->get($i)->type != 'template')
+				{
+					$expr->remove($i);
+					$i--;
+				}
+			}
+
+			$response = Expr::expand($expr, self::$data, 'last');
+			$response = $response->length ? $response->get(0) : null;
+
+			if ($response != null)
+				self::reply ($response);
 		}
 	}
 
@@ -124,9 +138,9 @@ class Wind
 		$params = $gateway->requestParams;
 
 		$f = Regex::_extract ('/[#A-Za-z0-9.,_:|-]+/', $params->f);
-		if (!$f) Wind::reply ([ 'response' => Wind::R_FUNCTION_NOT_FOUND ]);
+		if (!$f) self::reply ([ 'response' => self::R_FUNCTION_NOT_FOUND ]);
 
-		Wind::process($f);
+		self::process($f);
 	}
 
 	public static function header ($args, $parts, $data)
@@ -137,13 +151,13 @@ class Wind
 
 	public static function contentType ($args, $parts, $data)
 	{
-		Wind::$contentType = 'Content-Type: ' . $args->get(1);
+		self::$contentType = 'Content-Type: ' . $args->get(1);
 		return null;
 	}
 
 	public static function return ($args, $parts, $data)
 	{
-		Wind::reply ($args->get(1));
+		self::reply ($args->get(1));
 	}
 
 	public static function stop ($args, $parts, $data)
@@ -151,28 +165,12 @@ class Wind
 		Gateway::exit();
 	}
 
-	public static function loadTable ($args, $parts, $data)
-	{
-		return $data->{'data'} = Resources::getInstance()->Database->execQuery($args->get(1));
-	}
-
-	public static function loadData ($args, $parts, $data)
-	{
-		return $data->{'data'} = Resources::getInstance()->Database->execQuery($args->get(1))->rows;
-	}
-
-	public static function execQuery ($args, $parts, $data)
-	{
-		Resources::getInstance()->Database->execQuery($args->get(1));
-		return null;
-	}
-
 	public static function _echo ($parts, $data)
 	{
-		if (!Wind::$contentFlushed)
+		if (!self::$contentFlushed)
 		{
-			Gateway::header(Wind::$contentType ? Wind::$contentType : 'Content-Type: text/plain; charset=utf-8');
-			Wind::$contentFlushed = true;
+			Gateway::header(self::$contentType ? self::$contentType : 'Content-Type: text/plain; charset=utf-8');
+			self::$contentFlushed = true;
 		}
 
 		for ($i = 1; $i < $parts->length(); $i++)
@@ -184,21 +182,22 @@ class Wind
 	}
 };
 
+/* ****************************************************************************** */
 Expr::register('Session', function ($args) { return Session::$data; });
 Expr::register('Configuration', function ($args) { return Configuration::getInstance(); });
 Expr::register('Strings', function ($args) { return Strings::getInstance(); });
 Expr::register('Resources', function ($args) { return Resources::getInstance(); });
+Expr::register('Gateway', function ($args) { return Gateway::getInstance(); });
 
 Expr::register('Now', function ($args) { return new DateTime(); });
+Expr::register('Request', function ($args) { return Gateway::getInstance()->requestParams; });
 
 Expr::register('header', function(...$args) { return Wind::header(...$args); });
 Expr::register('contentType', function(...$args) { return Wind::contentType(...$args); });
 Expr::register('return', function(...$args) { return Wind::return(...$args); });
 Expr::register('stop', function(...$args) { return Wind::stop(...$args); });
-Expr::register('loadTable', function(...$args) { return Wind::loadTable(...$args); });
-Expr::register('loadData', function(...$args) { return Wind::loadData(...$args); });
-Expr::register('execQuery', function(...$args) { return Wind::execQuery(...$args); });
 Expr::register('return', function(...$args) { return Wind::return(...$args); });
 Expr::register('_echo', function(...$args) { return Wind::_echo(...$args); });
 
+/* ****************************************************************************** */
 Wind::init();
