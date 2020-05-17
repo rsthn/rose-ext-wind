@@ -19,6 +19,7 @@ namespace Rose\Ext;
 
 use Rose\Errors\FalseError;
 
+use Rose\IO\Directory;
 use Rose\IO\Path;
 use Rose\IO\File;
 
@@ -27,12 +28,15 @@ use Rose\Regex;
 use Rose\Text;
 use Rose\DateTime;
 use Rose\Expr;
+use Rose\Arry;
 use Rose\Map;
 
 use Rose\Resources;
 use Rose\Session;
 use Rose\Strings;
 use Rose\Configuration;
+
+use Rose\Ext\Wind\SubReturn;
 
 /*
 **	Wind extension.
@@ -48,10 +52,14 @@ class WindProxy
 class Wind
 {
 	private static $base;
+	private static $cache;
 	private static $data;
 
 	private static $contentFlushed;
 	private static $contentType;
+	private static $response;
+
+	private static $callStack;
 
 	public const R_OK 						= 200;
 	public const R_FUNCTION_NOT_FOUND 		= 400;
@@ -69,8 +77,14 @@ class Wind
 	{
 		Gateway::registerService ('wind', new WindProxy());
 
-		self::$base = 'resources/api';
+		self::$base = 'resources/wind';
+		self::$cache = 'resources/windc';
+
 		self::$data = new Map();
+		self::$callStack = new Arry();
+
+		if (!Path::exists(self::$cache))
+			Directory::create(self::$cache);
 
 		self::$contentFlushed = false;
 		self::$contentType = null;
@@ -88,6 +102,20 @@ class Wind
 		{
 			if (self::$contentType == null)
 				self::$contentType = 'Content-Type: application/json; charset=utf-8';
+
+			if (\Rose\typeOf($response) == 'Rose\Arry')
+			{
+				$response = new Map([ 'response' => Wind::R_OK, 'data' => $response ], false);
+			}
+			else
+			{
+				if (!$response->has('response'))
+				{
+					$tmp = new Map([ 'response' => Wind::R_OK ]);
+					$tmp->merge ($response, true);
+					$response = $tmp;
+				}
+			}
 		}
 		else if (is_string($response) && strlen($response) != 0)
 		{
@@ -99,22 +127,38 @@ class Wind
 			$response = $response ? (string)$response : null;
 		}
 
-		if ($response != null)
+		self::$response = $response;
+
+		if ($response != null && self::$data->internal_call == 0)
 		{
 			Gateway::header(self::$contentType);
 			echo (string)$response;
 		}
+
+		if (self::$data->internal_call)
+			throw new SubReturn();
 
 		Gateway::exit();
 	}
 
 	public static function process ($path)
 	{
-		$path = Path::append(self::$base, Text::replace('.', '/', $path));
+		if ($path[0] == '@')
+			$path = self::$callStack->get(self::$callStack->length-1)[0].$path;
 
-		if (Path::exists($path))
+		$path1 = Path::append(self::$base, Text::replace('.', '/', $path) . '.fn');
+		$path2 = Path::append(self::$cache, $path.'.fn');
+
+		self::$response = null;
+
+		if (Path::exists($path2) && Path::exists($path1) && File::mtime($path2, true) == File::mtime($path1, true))
 		{
-			$expr = Expr::parse(File::getContents($path));
+			$expr = unserialize(File::getContents($path2));
+		}
+		else if (Path::exists($path1))
+		{
+			$expr = Expr::parse(File::getContents($path1));
+
 			for ($i = 0; $i < $expr->length; $i++)
 			{
 				if ($expr->get($i)->type != 'template')
@@ -124,18 +168,32 @@ class Wind
 				}
 			}
 
-			$response = Expr::expand($expr, self::$data, 'last');
-			$response = $response->length ? $response->get(0) : null;
-
-			if ($response != null)
-				self::reply ($response);
+			File::setContents($path2, serialize($expr));
+			File::touch($path2, File::mtime($path1, true));
 		}
+		else
+			self::reply ([ 'response' => self::R_FUNCTION_NOT_FOUND ]);
+
+		$tmp = Text::split('.', $path);
+		$tmp->pop();
+		$tmp = $tmp->join('.').'.';
+
+		self::$callStack->push([ $tmp, $path ]);
+
+		$response = Expr::expand($expr, self::$data, 'last');
+
+		self::$callStack->pop();
+
+		if ($response != null)
+			self::reply ($response);
 	}
 
 	public static function main ()
 	{
 		$gateway = Gateway::getInstance();
 		$params = $gateway->requestParams;
+
+		self::$data->internal_call = 0;
 
 		$f = Regex::_extract ('/[#A-Za-z0-9.,_:|-]+/', $params->f);
 		if (!$f) self::reply ([ 'response' => self::R_FUNCTION_NOT_FOUND ]);
@@ -180,6 +238,39 @@ class Wind
 
 		return null;
 	}
+
+	public static function _trace ($parts, $data)
+	{
+		$s = '';
+
+		for ($i = 1; $i < $parts->length(); $i++)
+			$s .= ' ' . Expr::expand($parts->get($i), $data, 'arg');
+
+		if ($s != '')
+			\Rose\trace(Text::substring($s, 1));
+
+		return null;
+	}
+
+	public static function call ($args, $parts, $data)
+	{
+		self::$data->internal_call = 1 + self::$data->internal_call;
+
+		try {
+			self::process($args->get(1));
+		}
+		catch (SubReturn $e)
+		{
+			$response = self::$response;
+		}
+
+		self::$data->internal_call = self::$data->internal_call - 1;
+
+		if (\Rose\typeOf($response) == 'Rose\Map' && $response->response != 200)
+			self::reply($response);
+
+		return $response;
+	}
 };
 
 /* ****************************************************************************** */
@@ -198,6 +289,8 @@ Expr::register('return', function(...$args) { return Wind::return(...$args); });
 Expr::register('stop', function(...$args) { return Wind::stop(...$args); });
 Expr::register('return', function(...$args) { return Wind::return(...$args); });
 Expr::register('_echo', function(...$args) { return Wind::_echo(...$args); });
+Expr::register('_trace', function(...$args) { return Wind::_trace(...$args); });
+Expr::register('call', function(...$args) { return Wind::call(...$args); });
 
 /* ****************************************************************************** */
 Wind::init();
