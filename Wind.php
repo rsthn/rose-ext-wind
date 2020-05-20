@@ -55,6 +55,7 @@ class Wind
 	private static $cache;
 	private static $data;
 
+	private static $multiResponseMode;
 	private static $contentFlushed;
 	private static $contentType;
 	private static $response;
@@ -80,14 +81,14 @@ class Wind
 		self::$base = 'resources/wind';
 		self::$cache = 'resources/windc';
 
-		self::$data = new Map();
-		self::$callStack = new Arry();
-
 		if (!Path::exists(self::$cache))
 			Directory::create(self::$cache);
 
+		self::$callStack = new Arry();
+	
 		self::$contentFlushed = false;
 		self::$contentType = null;
+		self::$multiResponseMode = 0;
 	}
 
 	public static function reply ($response)
@@ -129,6 +130,9 @@ class Wind
 
 		self::$response = $response;
 
+		if (self::$multiResponseMode)
+			throw new FalseError();
+
 		if ($response != null && self::$data->internal_call == 0)
 		{
 			Gateway::header(self::$contentType);
@@ -141,8 +145,14 @@ class Wind
 		Gateway::exit();
 	}
 
-	public static function process ($path)
+	public static function process ($path, $resetContext)
 	{
+		if ($resetContext)
+		{
+			self::$data = new Map();
+			self::$data->internal_call = 0;
+		}
+
 		if ($path[0] == '@')
 			$path = self::$callStack->get(self::$callStack->length-1)[0].$path;
 
@@ -193,12 +203,54 @@ class Wind
 		$gateway = Gateway::getInstance();
 		$params = $gateway->requestParams;
 
-		self::$data->internal_call = 0;
+		if ($params->rpkg != null)
+		{
+			$requests = Text::split (';', $params->rpkg);
+
+			self::$multiResponseMode = 1;
+
+			$r = new Map ();
+			$n = 0;
+
+			$originalParams = $params;
+
+			foreach ($requests->__nativeArray as $i)
+			{
+				$i = Text::trim($i);
+				if (!$i) continue;
+
+				$i = Text::split (',', $i);
+				if ($i->length != 2) continue;
+
+				try {
+					$gateway->requestParams->clear()->merge($originalParams, true);
+					parse_str(base64_decode($i->get(1)), $requestParams);
+					$gateway->requestParams->__nativeArray = array_merge($gateway->requestParams->__nativeArray, $requestParams);
+				}
+				catch (\Exception $e) {
+					\Rose\trace('Error: '.$e->getMessage());
+					continue;
+				}
+
+				if (++$n > 256) break;
+
+				try {
+					self::process($gateway->requestParams->f, true);
+				}
+				catch (FalseError $e) {
+				}
+
+				$r->set($i->get(0), self::$response);
+			}
+
+			self::$multiResponseMode = 0;
+			self::reply($r);
+		}
 
 		$f = Regex::_extract ('/[#A-Za-z0-9.,_:|-]+/', $params->f);
 		if (!$f) self::reply ([ 'response' => self::R_FUNCTION_NOT_FOUND ]);
 
-		self::process($f);
+		self::process($f, true);
 	}
 
 	public static function header ($args, $parts, $data)
@@ -257,7 +309,7 @@ class Wind
 		self::$data->internal_call = 1 + self::$data->internal_call;
 
 		try {
-			self::process($args->get(1));
+			self::process($args->get(1), false);
 		}
 		catch (SubReturn $e)
 		{
