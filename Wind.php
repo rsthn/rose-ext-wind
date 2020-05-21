@@ -30,6 +30,7 @@ use Rose\DateTime;
 use Rose\Expr;
 use Rose\Arry;
 use Rose\Map;
+use Rose\Math;
 
 use Rose\Resources;
 use Rose\Session;
@@ -343,6 +344,8 @@ Expr::register('return', function(...$args) { return Wind::return(...$args); });
 Expr::register('_echo', function(...$args) { return Wind::_echo(...$args); });
 Expr::register('_trace', function(...$args) { return Wind::_trace(...$args); });
 Expr::register('call', function(...$args) { return Wind::call(...$args); });
+
+Expr::register('math::rand', function(...$args) { return Math::rand(); });
 
 /* ****************************************************************************** */
 Wind::init();
