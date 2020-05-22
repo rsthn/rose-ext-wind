@@ -18,6 +18,7 @@
 namespace Rose\Ext;
 
 use Rose\Errors\FalseError;
+use Rose\Errors\Error;
 
 use Rose\IO\Directory;
 use Rose\IO\Path;
@@ -102,7 +103,7 @@ class Wind
 
 		if (\Rose\typeOf($response) == 'Rose\\Map' || \Rose\typeOf($response) == 'Rose\Arry')
 		{
-			if (self::$contentType == null)
+			if (self::$contentType == null && self::$data->internal_call == 0)
 				self::$contentType = 'Content-Type: application/json; charset=utf-8';
 
 			if (\Rose\typeOf($response) == 'Rose\Arry')
@@ -121,7 +122,7 @@ class Wind
 		}
 		else if (is_string($response) && strlen($response) != 0)
 		{
-			if (self::$contentType == null)
+			if (self::$contentType == null && self::$data->internal_call == 0)
 				self::$contentType = 'Content-Type: text/plain; charset=utf-8';
 		}
 		else
@@ -140,7 +141,7 @@ class Wind
 			echo (string)$response;
 		}
 
-		if (self::$data->internal_call)
+		if (self::$data->internal_call != 0)
 			throw new SubReturn();
 
 		Gateway::exit();
@@ -254,28 +255,51 @@ class Wind
 		self::process($f, true);
 	}
 
+	/**
+	**	header <header-line>
+	*/
 	public static function header ($args, $parts, $data)
 	{
 		Gateway::header($args->get(1));
 		return null;
 	}
 
+	/**
+	**	contentType <mime>
+	*/
 	public static function contentType ($args, $parts, $data)
 	{
 		self::$contentType = 'Content-Type: ' . $args->get(1);
 		return null;
 	}
 
+	/**
+	**	return <data>
+	*/
 	public static function return ($args, $parts, $data)
 	{
 		self::reply ($args->get(1));
 	}
 
+	/**
+	**	stop
+	*/
 	public static function stop ($args, $parts, $data)
 	{
 		Gateway::exit();
 	}
 
+	/**
+	**	error <message>
+	*/
+	public static function error ($args, $parts, $data)
+	{
+		throw new Error ($args->get(1));
+	}
+
+	/**
+	**	echo <message> [<message>...]
+	*/
 	public static function _echo ($parts, $data)
 	{
 		if (!self::$contentFlushed)
@@ -292,6 +316,9 @@ class Wind
 		return null;
 	}
 
+	/**
+	**	trace <message> [<message>...]
+	*/
 	public static function _trace ($parts, $data)
 	{
 		$s = '';
@@ -305,15 +332,33 @@ class Wind
 		return null;
 	}
 
-	public static function call ($args, $parts, $data)
+	/**
+	**	call <fnname> [<name>: <expr>...]
+	*/
+	public static function _call ($parts, $data)
 	{
 		self::$data->internal_call = 1 + self::$data->internal_call;
 
-		try {
-			self::process($args->get(1), false);
-		}
-		catch (SubReturn $e)
+		$n_args = new Map();
+
+		for ($i = 2; $i < $parts->length(); $i += 2)
 		{
+			$key = Expr::value($parts->get($i), $data);
+			if (substr($key, -1) == ':')
+				$key = substr($key, 0, strlen($key)-1);
+	
+			$n_args->set($key, Expr::value($parts->get($i+1), $data));
+		}
+
+		try {
+			$p_args = self::$data->args;
+			self::$data->args = $n_args;
+
+			self::process(Expr::expand($parts->get(1), $data), false);
+
+			self::$data->args = $p_args;
+		}
+		catch (SubReturn $e) {
 			$response = self::$response;
 		}
 
@@ -336,16 +381,18 @@ Expr::register('Gateway', function ($args) { return Gateway::getInstance(); });
 Expr::register('Now', function ($args) { return new DateTime(); });
 Expr::register('Request', function ($args) { return Gateway::getInstance()->requestParams; });
 
+Expr::register('math::rand', function() { return Math::rand(); });
+
+Expr::register('utils::sleep', function($args) { sleep($args->get(1)); return null; });
+
 Expr::register('header', function(...$args) { return Wind::header(...$args); });
 Expr::register('contentType', function(...$args) { return Wind::contentType(...$args); });
-Expr::register('return', function(...$args) { return Wind::return(...$args); });
 Expr::register('stop', function(...$args) { return Wind::stop(...$args); });
 Expr::register('return', function(...$args) { return Wind::return(...$args); });
 Expr::register('_echo', function(...$args) { return Wind::_echo(...$args); });
 Expr::register('_trace', function(...$args) { return Wind::_trace(...$args); });
-Expr::register('call', function(...$args) { return Wind::call(...$args); });
-
-Expr::register('math::rand', function(...$args) { return Math::rand(); });
+Expr::register('_call', function(...$args) { return Wind::_call(...$args); });
+Expr::register('error', function(...$args) { return Wind::error(...$args); });
 
 /* ****************************************************************************** */
 Wind::init();
