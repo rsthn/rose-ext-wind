@@ -132,7 +132,7 @@ class Wind
 
 		self::$response = $response;
 
-		if (self::$multiResponseMode)
+		if (self::$multiResponseMode && self::$data->internal_call == 0)
 			throw new FalseError();
 
 		if ($response != null && self::$data->internal_call == 0)
@@ -360,6 +360,10 @@ class Wind
 		}
 		catch (SubReturn $e) {
 			$response = self::$response;
+		}
+		catch (FalseError $e) {
+			echo 'ERROR: ' . $e;
+			exit;
 		}
 
 		self::$data->internal_call = self::$data->internal_call - 1;
