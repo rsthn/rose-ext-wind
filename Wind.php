@@ -81,7 +81,7 @@ class Wind
 		Gateway::registerService ('wind', new WindProxy());
 
 		self::$base = 'resources/wind';
-		self::$cache = 'resources/windc';
+		self::$cache = 'resources/.wind.cache';
 
 		if (!Path::exists(self::$cache))
 			Directory::create(self::$cache);
