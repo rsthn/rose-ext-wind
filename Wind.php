@@ -388,6 +388,8 @@ Expr::register('Request', function ($args) { return Gateway::getInstance()->requ
 Expr::register('math::rand', function() { return Math::rand(); });
 
 Expr::register('utils::sleep', function($args) { sleep($args->get(1)); return null; });
+Expr::register('utils::base64:encode', function($args) { return base64_encode ($args->get(1)); });
+Expr::register('utils::base64:decode', function($args) { return base64_decode ($args->get(1)); });
 
 Expr::register('header', function(...$args) { return Wind::header(...$args); });
 Expr::register('contentType', function(...$args) { return Wind::contentType(...$args); });
