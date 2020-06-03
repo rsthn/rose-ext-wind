@@ -377,22 +377,43 @@ class Wind
 
 /* ****************************************************************************** */
 Expr::register('Session', function ($args) { return Session::$data; });
+Expr::register('session', function ($args) { return Session::$data; });
+
 Expr::register('Configuration', function ($args) { return Configuration::getInstance(); });
+Expr::register('configuration', function ($args) { return Configuration::getInstance(); });
+
 Expr::register('Strings', function ($args) { return Strings::getInstance(); });
+Expr::register('strings', function ($args) { return Strings::getInstance(); });
+
 Expr::register('Resources', function ($args) { return Resources::getInstance(); });
+Expr::register('resources', function ($args) { return Resources::getInstance(); });
+
 Expr::register('Gateway', function ($args) { return Gateway::getInstance(); });
+Expr::register('gateway', function ($args) { return Gateway::getInstance(); });
 
 Expr::register('Now', function ($args) { return new DateTime(); });
+Expr::register('datetime::now', function ($args) { return new DateTime(); });
+Expr::register('datetime::now:int', function ($args) { return (new DateTime())->getTimestamp(); });
+
 Expr::register('Request', function ($args) { return Gateway::getInstance()->requestParams; });
+Expr::register('request', function ($args) { return Gateway::getInstance()->requestParams; });
 
 Expr::register('math::rand', function() { return Math::rand(); });
+Expr::register('math::randstr', function($args) { return bin2hex(random_bytes((int)$args->get(1))); });
+Expr::register('math::uuid', function() {
+	$data = random_bytes(16);
+    $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+    $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+});
+
 
 Expr::register('utils::sleep', function($args) { sleep($args->get(1)); return null; });
 Expr::register('utils::base64:encode', function($args) { return base64_encode ($args->get(1)); });
 Expr::register('utils::base64:decode', function($args) { return base64_decode ($args->get(1)); });
 
 Expr::register('header', function(...$args) { return Wind::header(...$args); });
-Expr::register('contentType', function(...$args) { return Wind::contentType(...$args); });
+Expr::register('content-type', function(...$args) { return Wind::contentType(...$args); });
 Expr::register('stop', function(...$args) { return Wind::stop(...$args); });
 Expr::register('return', function(...$args) { return Wind::return(...$args); });
 Expr::register('_echo', function(...$args) { return Wind::_echo(...$args); });
