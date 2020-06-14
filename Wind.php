@@ -169,7 +169,7 @@ class Wind
 		}
 		else if (Path::exists($path1))
 		{
-			$expr = Expr::parse(File::getContents($path1));
+			$expr = Expr::parse(Regex::_replace ('|/\*(.*?)\*/|s', File::getContents($path1), ''));
 
 			for ($i = 0; $i < $expr->length; $i++)
 			{
@@ -411,6 +411,9 @@ Expr::register('math::uuid', function() {
 Expr::register('utils::sleep', function($args) { sleep($args->get(1)); return null; });
 Expr::register('utils::base64:encode', function($args) { return base64_encode ($args->get(1)); });
 Expr::register('utils::base64:decode', function($args) { return base64_decode ($args->get(1)); });
+
+Expr::register('utils::hex:encode', function($args) { return bin2hex ($args->get(1)); });
+Expr::register('utils::hex:decode', function($args) { return hex2bin ($args->get(1)); });
 
 Expr::register('header', function(...$args) { return Wind::header(...$args); });
 Expr::register('content-type', function(...$args) { return Wind::contentType(...$args); });
