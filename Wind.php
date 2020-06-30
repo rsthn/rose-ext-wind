@@ -241,6 +241,9 @@ class Wind
 				}
 				catch (FalseError $e) {
 				}
+				catch (Error $e) {
+					self::$response = new Map([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
+				}
 
 				$r->set($i->get(0), self::$response);
 			}
@@ -252,7 +255,14 @@ class Wind
 		$f = Regex::_extract ('/[#A-Za-z0-9.,_:|-]+/', $params->f);
 		if (!$f) self::reply ([ 'response' => self::R_FUNCTION_NOT_FOUND ]);
 
-		self::process($f, true);
+		try {
+			self::process($f, true);
+		}
+		catch (FalseError $e) {
+		}
+		catch (Error $e) {
+			self::reply ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
+		}
 	}
 
 	/**
@@ -364,9 +374,8 @@ class Wind
 		catch (SubReturn $e) {
 			$response = self::$response;
 		}
-		catch (FalseError $e) {
-			echo 'ERROR: ' . $e;
-			exit;
+		catch (Error $e) {
+			$response = new Map([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
 		}
 
 		self::$data->internal_call = self::$data->internal_call - 1;
