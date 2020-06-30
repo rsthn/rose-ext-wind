@@ -260,6 +260,9 @@ class Wind
 	*/
 	public static function header ($args, $parts, $data)
 	{
+		if (Text::toUpperCase(Text::substring($args->get(1), 0, 12)) == 'CONTENT-TYPE')
+			self::$contentType = $args->get(1);
+
 		Gateway::header($args->get(1));
 		return null;
 	}
