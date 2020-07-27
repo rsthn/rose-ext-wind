@@ -260,9 +260,9 @@ class Wind
 		}
 		catch (FalseError $e) {
 		}
-		catch (Error $e) {
-			self::reply ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
-		}
+		//catch (Error $e) {
+		//	self::reply ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
+		//}
 	}
 
 	/**
@@ -374,6 +374,11 @@ class Wind
 		catch (SubReturn $e) {
 			$response = self::$response;
 		}
+		catch (FalseError $e) {
+			echo 'ERROR: ' . $e;
+			\Rose\trace('Uncaught FalseError: '.$e->getMessage());
+			exit;
+		}
 		catch (Error $e) {
 			$response = new Map([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
 		}
@@ -419,13 +424,15 @@ Expr::register('math::uuid', function() {
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 });
 
-
 Expr::register('utils::sleep', function($args) { sleep($args->get(1)); return null; });
 Expr::register('utils::base64:encode', function($args) { return base64_encode ($args->get(1)); });
 Expr::register('utils::base64:decode', function($args) { return base64_decode ($args->get(1)); });
-
 Expr::register('utils::hex:encode', function($args) { return bin2hex ($args->get(1)); });
 Expr::register('utils::hex:decode', function($args) { return hex2bin ($args->get(1)); });
+Expr::register('utils::url:encode', function($args) { return urlencode ($args->get(1)); });
+Expr::register('utils::url:decode', function($args) { return urldecode ($args->get(1)); });
+Expr::register('utils::json:stringify', function($args) { return (string)($args->get(1)); });
+Expr::register('utils::json:parse', function($args) { return Text::substring($args->get(1), 0, 1) == '[' ? Arry::fromNativeArray(json_decode($args->get(1), true)) : Map::fromNativeArray(json_decode($args->get(1), true)); });
 
 Expr::register('header', function(...$args) { return Wind::header(...$args); });
 Expr::register('content-type', function(...$args) { return Wind::contentType(...$args); });
