@@ -205,9 +205,9 @@ class Wind
 		$gateway = Gateway::getInstance();
 		$params = $gateway->requestParams;
 
-		if ($params->rpkg != null)
+		if ($params->rpkg != null || $params->mreq != null)
 		{
-			$requests = Text::split (';', $params->rpkg);
+			$requests = Text::split (';', $params->rpkg != null ? $params->rpkg : $params->mreq);
 
 			self::$multiResponseMode = 1;
 
@@ -260,9 +260,9 @@ class Wind
 		}
 		catch (FalseError $e) {
 		}
-		catch (Error $e) {
-			self::reply ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
-		}
+		//catch (Error $e) {
+		//	self::reply ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
+		//}
 	}
 
 	/**
@@ -291,7 +291,7 @@ class Wind
 	*/
 	public static function return ($args, $parts, $data)
 	{
-		self::reply ($args->get(1));
+		self::reply ($args->length > 1 ? $args->get(1) : new Map());
 	}
 
 	/**
@@ -299,6 +299,11 @@ class Wind
 	*/
 	public static function stop ($args, $parts, $data)
 	{
+		self::$data->internal_call = 0;
+
+		if ($args->length > 1)
+			self::reply ($args->get(1));
+
 		Gateway::exit();
 	}
 
@@ -367,12 +372,15 @@ class Wind
 			$p_args = self::$data->args;
 			self::$data->args = $n_args;
 
-			self::process(Expr::expand($parts->get(1), $data), false);
+			self::process($name = Expr::expand($parts->get(1), $data), false);
 
 			self::$data->args = $p_args;
 		}
 		catch (SubReturn $e) {
 			$response = self::$response;
+		}
+		catch (FalseError $e) {
+			throw $e;
 		}
 		catch (Error $e) {
 			$response = new Map([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
@@ -419,13 +427,15 @@ Expr::register('math::uuid', function() {
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 });
 
-
 Expr::register('utils::sleep', function($args) { sleep($args->get(1)); return null; });
 Expr::register('utils::base64:encode', function($args) { return base64_encode ($args->get(1)); });
 Expr::register('utils::base64:decode', function($args) { return base64_decode ($args->get(1)); });
-
 Expr::register('utils::hex:encode', function($args) { return bin2hex ($args->get(1)); });
 Expr::register('utils::hex:decode', function($args) { return hex2bin ($args->get(1)); });
+Expr::register('utils::url:encode', function($args) { return urlencode ($args->get(1)); });
+Expr::register('utils::url:decode', function($args) { return urldecode ($args->get(1)); });
+Expr::register('utils::json:stringify', function($args) { return (string)($args->get(1)); });
+Expr::register('utils::json:parse', function($args) { return Text::substring($args->get(1), 0, 1) == '[' ? Arry::fromNativeArray(json_decode($args->get(1), true)) : Map::fromNativeArray(json_decode($args->get(1), true)); });
 
 Expr::register('header', function(...$args) { return Wind::header(...$args); });
 Expr::register('content-type', function(...$args) { return Wind::contentType(...$args); });
