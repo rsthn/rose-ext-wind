@@ -1,7 +1,7 @@
 {
     "name": "rsthn/rose-ext-wind",
-    "description": "Wind Web-Service Extension",
-    "version": "1.0.15",
+    "description": "Wind Web-Service Extension (Rose)",
+    "version": "1.0.16",
     "type": "rose-extension",
     "license": "Apache-2.0",
     "authors": [

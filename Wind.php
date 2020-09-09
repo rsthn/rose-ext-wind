@@ -81,10 +81,10 @@ class Wind
 		Gateway::registerService ('wind', new WindProxy());
 
 		self::$base = 'resources/wind';
-		self::$cache = 'resources/.wind.cache';
+		self::$cache = 'volatile/wind';
 
 		if (!Path::exists(self::$cache))
-			Directory::create(self::$cache);
+			Directory::create(self::$cache, true);
 
 		self::$callStack = new Arry();
 	
@@ -251,6 +251,8 @@ class Wind
 			self::$multiResponseMode = 0;
 			self::reply($r);
 		}
+
+		if ($gateway->relativePath) $params->f = Text::replace('/', '.', Text::trim($gateway->relativePath, '/'));
 
 		$f = Regex::_extract ('/[#A-Za-z0-9.,_:|-]+/', $params->f);
 		if (!$f) self::reply ([ 'response' => self::R_FUNCTION_NOT_FOUND ]);
