@@ -200,6 +200,11 @@ class Wind
 			self::reply ($response);
 	}
 
+	private static function requiresJsonReply()
+	{
+		return strstr($_SERVER['HTTP_ACCEPT'], 'application/json') !== false;
+	}
+
 	public static function main ()
 	{
 		$gateway = Gateway::getInstance();
@@ -262,9 +267,13 @@ class Wind
 		}
 		catch (FalseError $e) {
 		}
-		//catch (Error $e) {
-		//	self::reply ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
-		//}
+		catch (Error $e)
+		{
+			if (self::requiresJsonReply())
+				self::reply ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
+			else
+				throw $e;
+		}
 	}
 
 	/**
@@ -384,8 +393,14 @@ class Wind
 		catch (FalseError $e) {
 			throw $e;
 		}
-		catch (Error $e) {
-			$response = new Map([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
+		catch (Error $e)
+		{
+			self::$data->internal_call = self::$data->internal_call - 1;
+
+			if (self::requiresJsonReply())
+				self::reply ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
+			else
+				throw $e;
 		}
 
 		self::$data->internal_call = self::$data->internal_call - 1;
