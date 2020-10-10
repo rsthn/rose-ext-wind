@@ -95,6 +95,12 @@ class Wind
 
 	public static function reply ($response)
 	{
+		if (self::$data->internal_call != 0)
+		{
+			self::$response = $response;
+			throw new SubReturn();
+		}
+
 		if (self::$contentFlushed)
 			Gateway::exit();
 
@@ -103,7 +109,7 @@ class Wind
 
 		if (\Rose\typeOf($response) == 'Rose\\Map' || \Rose\typeOf($response) == 'Rose\Arry')
 		{
-			if (self::$contentType == null && self::$data->internal_call == 0)
+			if (self::$contentType == null)
 				self::$contentType = 'Content-Type: application/json; charset=utf-8';
 
 			if (\Rose\typeOf($response) == 'Rose\Arry')
@@ -122,7 +128,7 @@ class Wind
 		}
 		else if (is_string($response) && strlen($response) != 0)
 		{
-			if (self::$contentType == null && self::$data->internal_call == 0)
+			if (self::$contentType == null)
 				self::$contentType = 'Content-Type: text/plain; charset=utf-8';
 		}
 		else
@@ -132,10 +138,10 @@ class Wind
 
 		self::$response = $response;
 
-		if (self::$multiResponseMode && self::$data->internal_call == 0)
+		if (self::$multiResponseMode)
 			throw new FalseError();
 
-		if ($response != null && self::$data->internal_call == 0)
+		if ($response != null)
 		{
 			Gateway::header(self::$contentType);
 			echo (string)$response;
@@ -246,7 +252,7 @@ class Wind
 				}
 				catch (FalseError $e) {
 				}
-				catch (Error $e) {
+				catch (\Exception $e) {
 					self::$response = new Map([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
 				}
 
@@ -267,7 +273,7 @@ class Wind
 		}
 		catch (FalseError $e) {
 		}
-		catch (Error $e)
+		catch (\Exception $e)
 		{
 			if (self::requiresJsonReply())
 				self::reply ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
@@ -300,7 +306,7 @@ class Wind
 	/**
 	**	return <data>
 	*/
-	public static function return ($args, $parts, $data)
+	public static function _return ($args, $parts, $data)
 	{
 		self::reply ($args->length > 1 ? $args->get(1) : new Map());
 	}
@@ -393,7 +399,7 @@ class Wind
 		catch (FalseError $e) {
 			throw $e;
 		}
-		catch (Error $e)
+		catch (\Exception $e)
 		{
 			self::$data->internal_call = self::$data->internal_call - 1;
 
@@ -416,7 +422,7 @@ class Wind
 Expr::register('header', function(...$args) { return Wind::header(...$args); });
 Expr::register('content-type', function(...$args) { return Wind::contentType(...$args); });
 Expr::register('stop', function(...$args) { return Wind::stop(...$args); });
-Expr::register('return', function(...$args) { return Wind::return(...$args); });
+Expr::register('return', function(...$args) { return Wind::_return(...$args); });
 Expr::register('_echo', function(...$args) { return Wind::_echo(...$args); });
 Expr::register('_trace', function(...$args) { return Wind::_trace(...$args); });
 Expr::register('_call', function(...$args) { return Wind::_call(...$args); });
