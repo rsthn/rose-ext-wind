@@ -39,6 +39,7 @@ use Rose\Strings;
 use Rose\Configuration;
 
 use Rose\Ext\Wind\SubReturn;
+use Rose\Ext\Wind\WindError;
 
 /*
 **	Wind extension.
@@ -93,25 +94,13 @@ class Wind
 		self::$multiResponseMode = 0;
 	}
 
-	public static function reply ($response)
+	public static function prepare ($response)
 	{
-		if (self::$data->internal_call != 0)
-		{
-			self::$response = $response;
-			throw new SubReturn();
-		}
-
-		if (self::$contentFlushed)
-			Gateway::exit();
-
 		if (is_array($response))
 			$response = new Map ($response);
 
-		if (\Rose\typeOf($response) == 'Rose\\Map' || \Rose\typeOf($response) == 'Rose\Arry')
+		if (\Rose\typeOf($response) == 'Rose\Map' || \Rose\typeOf($response) == 'Rose\Arry')
 		{
-			if (self::$contentType == null)
-				self::$contentType = 'Content-Type: application/json; charset=utf-8';
-
 			if (\Rose\typeOf($response) == 'Rose\Arry')
 			{
 				$response = new Map([ 'response' => Wind::R_OK, 'data' => $response ], false);
@@ -126,14 +115,39 @@ class Wind
 				}
 			}
 		}
-		else if (is_string($response) && strlen($response) != 0)
+		else if (is_string($response))
 		{
-			if (self::$contentType == null)
-				self::$contentType = 'Content-Type: text/plain; charset=utf-8';
 		}
 		else
 		{
 			$response = $response ? (string)$response : null;
+		}
+
+		return $response;
+	}
+
+	public static function reply ($response)
+	{
+		if (self::$data->internal_call != 0)
+		{
+			self::$response = $response;
+			throw new SubReturn();
+		}
+
+		if (self::$contentFlushed)
+			Gateway::exit();
+
+		$response = self::prepare($response);
+
+		if (\Rose\typeOf($response) == 'Rose\Map' || \Rose\typeOf($response) == 'Rose\Arry')
+		{
+			if (self::$contentType == null)
+				self::$contentType = 'Content-Type: application/json; charset=utf-8';
+		}
+		else if (is_string($response) && strlen($response) != 0)
+		{
+			if (self::$contentType == null)
+				self::$contentType = 'Content-Type: text/plain; charset=utf-8';
 		}
 
 		self::$response = $response;
@@ -248,9 +262,15 @@ class Wind
 				if (++$n > 256) break;
 
 				try {
-					self::process($gateway->requestParams->f, true);
+					$f = Regex::_extract ('/[#A-Za-z0-9.,_-]+/', $gateway->requestParams->f);
+					if (!$f) self::reply ([ 'response' => self::R_FUNCTION_NOT_FOUND ]);
+			
+					self::process($f, true);
 				}
 				catch (FalseError $e) {
+				}
+				catch (WindError $e) {
+					self::$response = self::prepare($e->getResponse());
 				}
 				catch (\Exception $e) {
 					self::$response = new Map([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
@@ -265,13 +285,16 @@ class Wind
 
 		if ($gateway->relativePath) $params->f = Text::replace('/', '.', Text::trim($gateway->relativePath, '/'));
 
-		$f = Regex::_extract ('/[#A-Za-z0-9.,_:|-]+/', $params->f);
+		$f = Regex::_extract ('/[#A-Za-z0-9.,_-]+/', $params->f);
 		if (!$f) self::reply ([ 'response' => self::R_FUNCTION_NOT_FOUND ]);
 
 		try {
 			self::process($f, true);
 		}
 		catch (FalseError $e) {
+		}
+		catch (WindError $e) {
+			self::reply ($e->getResponse());
 		}
 		catch (\Exception $e)
 		{
@@ -399,6 +422,10 @@ class Wind
 		catch (FalseError $e) {
 			throw $e;
 		}
+		catch (WindError $e) {
+			self::$data->internal_call = self::$data->internal_call - 1;
+			throw $e;
+		}
 		catch (\Exception $e)
 		{
 			self::$data->internal_call = self::$data->internal_call - 1;
@@ -411,8 +438,8 @@ class Wind
 
 		self::$data->internal_call = self::$data->internal_call - 1;
 
-		if (\Rose\typeOf($response) == 'Rose\Map' && $response->response != 200)
-			self::reply($response);
+		//if (\Rose\typeOf($response) == 'Rose\Map' && $response->response != 200)
+		//	self::reply($response);
 
 		return $response;
 	}
