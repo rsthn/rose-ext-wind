@@ -204,7 +204,7 @@ class Wind
 			File::touch($path2, File::mtime($path1, true));
 		}
 		else
-			self::reply ([ 'response' => self::R_FUNCTION_NOT_FOUND ]);
+			throw new WindError ([ 'response' => self::R_FUNCTION_NOT_FOUND, 'error' => 'Function not found: ' . $path ]);
 
 		$tmp = Text::split('.', $path);
 		$tmp->pop();
@@ -263,8 +263,8 @@ class Wind
 
 				try {
 					$f = Regex::_extract ('/[#A-Za-z0-9.,_-]+/', $gateway->requestParams->f);
-					if (!$f) self::reply ([ 'response' => self::R_FUNCTION_NOT_FOUND ]);
-			
+					if (!$f) throw new WindError ([ 'response' => self::R_FUNCTION_NOT_FOUND, 'error' => 'Function not found: ' . $f ]);
+
 					self::process($f, true);
 				}
 				catch (FalseError $e) {
@@ -285,10 +285,10 @@ class Wind
 
 		if ($gateway->relativePath) $params->f = Text::replace('/', '.', Text::trim($gateway->relativePath, '/'));
 
-		$f = Regex::_extract ('/[#A-Za-z0-9.,_-]+/', $params->f);
-		if (!$f) self::reply ([ 'response' => self::R_FUNCTION_NOT_FOUND ]);
-
 		try {
+			$f = Regex::_extract ('/[#A-Za-z0-9.,_-]+/', $params->f);
+			if (!$f) throw new WindError ([ 'response' => self::R_FUNCTION_NOT_FOUND, 'error' => 'Function not found: ' . $f ]);
+
 			self::process($f, true);
 		}
 		catch (FalseError $e) {
@@ -391,55 +391,89 @@ class Wind
 	}
 
 	/**
-	**	call <fnname> [<name>: <expr>...]
+	**	call <fnname> [:<name> <expr>...]
 	*/
 	public static function _call ($parts, $data)
 	{
 		self::$data->internal_call = 1 + self::$data->internal_call;
 
-		$n_args = new Map();
-
-		for ($i = 2; $i < $parts->length(); $i += 2)
-		{
-			$key = Expr::value($parts->get($i), $data);
-			if (substr($key, -1) == ':')
-				$key = substr($key, 0, strlen($key)-1);
-	
-			$n_args->set($key, Expr::value($parts->get($i+1), $data));
-		}
-
 		try {
+			$n_args = Expr::getNamedValues($parts, $data, 2);
+
 			$p_args = self::$data->args;
 			self::$data->args = $n_args;
 
 			self::process($name = Expr::expand($parts->get(1), $data), false);
-
-			self::$data->args = $p_args;
 		}
 		catch (SubReturn $e) {
 			$response = self::$response;
 		}
 		catch (FalseError $e) {
+			self::$data->args = $p_args;
 			throw $e;
 		}
 		catch (WindError $e) {
 			self::$data->internal_call = self::$data->internal_call - 1;
+			self::$data->args = $p_args;
 			throw $e;
 		}
 		catch (\Exception $e)
 		{
 			self::$data->internal_call = self::$data->internal_call - 1;
+			self::$data->args = $p_args;
 
 			if (self::requiresJsonReply())
-				self::reply ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
+				throw new WindError ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
 			else
 				throw $e;
 		}
 
 		self::$data->internal_call = self::$data->internal_call - 1;
+		self::$data->args = $p_args;
 
-		//if (\Rose\typeOf($response) == 'Rose\Map' && $response->response != 200)
-		//	self::reply($response);
+		return $response;
+	}
+
+	/**
+	**	icall <fnname> [:<name> <expr>...]
+	*/
+	public static function _icall ($parts, $data)
+	{
+		self::$data->internal_call = 1 + self::$data->internal_call;
+
+		$p_data = self::$data;
+		self::$data = new Map();
+
+		try {
+			self::$data->internal_call = $p_data->internal_call;
+			self::$data->args = Expr::getNamedValues($parts, $data, 2);
+			self::process($name = Expr::expand($parts->get(1), $data), false);
+		}
+		catch (SubReturn $e) {
+			$response = self::$response;
+		}
+		catch (FalseError $e) {
+			self::$data = $p_data;
+			throw $e;
+		}
+		catch (WindError $e) {
+			self::$data = $p_data;
+			self::$data->internal_call = self::$data->internal_call - 1;
+			throw $e;
+		}
+		catch (\Exception $e)
+		{
+			self::$data = $p_data;
+			self::$data->internal_call = self::$data->internal_call - 1;
+
+			if (self::requiresJsonReply())
+				throw new WindError ([ 'response' => Wind::R_CUSTOM_ERROR, 'error' => $e->getMessage() ]);
+			else
+				throw $e;
+		}
+
+		self::$data = $p_data;
+		self::$data->internal_call = self::$data->internal_call - 1;
 
 		return $response;
 	}
@@ -450,9 +484,11 @@ Expr::register('header', function(...$args) { return Wind::header(...$args); });
 Expr::register('content-type', function(...$args) { return Wind::contentType(...$args); });
 Expr::register('stop', function(...$args) { return Wind::stop(...$args); });
 Expr::register('return', function(...$args) { return Wind::_return(...$args); });
+Expr::register('ret', function(...$args) { return Wind::_return(...$args); });
 Expr::register('_echo', function(...$args) { return Wind::_echo(...$args); });
 Expr::register('_trace', function(...$args) { return Wind::_trace(...$args); });
 Expr::register('_call', function(...$args) { return Wind::_call(...$args); });
+Expr::register('_icall', function(...$args) { return Wind::_icall(...$args); });
 Expr::register('error', function(...$args) { return Wind::error(...$args); });
 
 /* ****************************************************************************** */
