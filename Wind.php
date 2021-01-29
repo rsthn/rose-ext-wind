@@ -263,7 +263,7 @@ class Wind
 
 				try {
 					$f = Regex::_extract ('/[#A-Za-z0-9.,_-]+/', $gateway->requestParams->f);
-					if (!$f) throw new WindError ([ 'response' => self::R_FUNCTION_NOT_FOUND, 'error' => 'Function not found: ' . $f ]);
+					if (!$f) throw new WindError ([ 'response' => self::R_FUNCTION_NOT_FOUND, 'error' => ($f ? 'Function not found: ' . $f : 'Function name not specified.') ]);
 
 					self::process($f, true);
 				}
@@ -287,7 +287,7 @@ class Wind
 
 		try {
 			$f = Regex::_extract ('/[#A-Za-z0-9.,_-]+/', $params->f);
-			if (!$f) throw new WindError ([ 'response' => self::R_FUNCTION_NOT_FOUND, 'error' => 'Function not found: ' . $f ]);
+			if (!$f) throw new WindError ([ 'response' => self::R_FUNCTION_NOT_FOUND, 'error' => ($f ? 'Function not found: ' . $f : 'Function name not specified.') ]);
 
 			self::process($f, true);
 		}
@@ -484,7 +484,6 @@ Expr::register('header', function(...$args) { return Wind::header(...$args); });
 Expr::register('content-type', function(...$args) { return Wind::contentType(...$args); });
 Expr::register('stop', function(...$args) { return Wind::stop(...$args); });
 Expr::register('return', function(...$args) { return Wind::_return(...$args); });
-Expr::register('ret', function(...$args) { return Wind::_return(...$args); });
 Expr::register('_echo', function(...$args) { return Wind::_echo(...$args); });
 Expr::register('_trace', function(...$args) { return Wind::_trace(...$args); });
 Expr::register('_call', function(...$args) { return Wind::_call(...$args); });
